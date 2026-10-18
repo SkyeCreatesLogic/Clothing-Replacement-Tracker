@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="ClothingReplacementTracker:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/ClothingReplacementTracker_jar</output-path>
+    <root id="archive" name="ClothingReplacementTracker.jar">
+      <element id="module-output" name="ClothingReplacementTracker" />
+    </root>
+  </artifact>
+</component>
