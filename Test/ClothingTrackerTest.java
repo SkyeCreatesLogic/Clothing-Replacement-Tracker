@@ -12,7 +12,6 @@ class ClothingTrackerTest {
 
     @TempDir
     Path tempDir;
-
     private ClothingItem createItem(
             String size, String color, int wears, int expectedWears) {
 

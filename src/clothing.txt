@@ -9,7 +9,6 @@ pants|M|blue|2026-01-18|20|100
 pants|L|black|2026-02-22|30|100
 pants|S|gray|2026-03-15|10|80
 pants|XL|khaki|2026-04-10|15|90
-coats|M|black|2025-11-15|20|100
 coats|L|brown|2025-12-01|10|80
 coats|XL|gray|2026-01-20|15|100
 underwear|M|white|2026-05-01|10|40
@@ -19,4 +18,6 @@ bras|S|black|2026-02-05|20|80
 bras|M|nude|2026-03-12|10|80
 bras|L|white|2026-04-20|15|100
 shirts|M|blue|2026-01-15|5|50
-shirts|L|green|2026-07-01|6|50
+shirts|L|green|2026-07-01|6|100
+shirts|M|blue|2026-10-31|0|50
+shirts|M|blue|2026-10-31|6|50
