@@ -1,34 +1,26 @@
 
-/*
- * Student: Skye Tharpe
- * Course: CEN 3024C - Software Development I
- * Date: October 31, 2026
- * Class: ClothingReplacementTracker
- *
- * Purpose: This class makes the screen where users can see their
- * clothing, add new items, change or remove items, load a text file,
- * and check how much their clothing has been worn.
- */
-
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableRowSorter;
 import java.awt.*;
-import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
-import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
 
 public class ClothingReplacementTracker extends JFrame {
 
-    private final ClothingTracker tracker = new ClothingTracker();
+    // Clothing data is now stored in SQLite.
+    private String databasePath = Path.of("clothing.db")
+            .toAbsolutePath().toString();
 
     private final Color navy = new Color(24, 37, 56);
     private final Color blue = new Color(47, 99, 172);
@@ -55,7 +47,6 @@ public class ClothingReplacementTracker extends JFrame {
                     "Purchase Date", "Number of Wears",
                     "Expected Wears", "Wear %"
             }, 0) {
-
                 @Override
                 public boolean isCellEditable(int row, int column) {
                     return false;
@@ -74,14 +65,10 @@ public class ClothingReplacementTracker extends JFrame {
             };
 
     private final JTable table = new JTable(model);
-
     private final TableRowSorter<DefaultTableModel> sorter =
             new TableRowSorter<>(model);
 
-    private final List<ClothingItem> displayedItems =
-            new ArrayList<>();
-
-    private final JTextField fileField = new JTextField(36);
+    private final JTextField databaseField = new JTextField(36);
     private final JTextField searchField = new JTextField(18);
 
     private final JLabel itemsValue = new JLabel("0");
@@ -91,12 +78,7 @@ public class ClothingReplacementTracker extends JFrame {
     private final JLabel status =
             new JLabel("Ready to manage your clothing inventory");
 
-    /*
-     * Method: ClothingReplacementTracker
-     * Purpose: Sets up the main window and loads the clothing file.
-     * Takes in: Nothing.
-     * Returns: Nothing.
-     */
+    // Sets up the main GUI.
     public ClothingReplacementTracker() {
 
         super("Clothing Replacement Tracker");
@@ -120,26 +102,11 @@ public class ClothingReplacementTracker extends JFrame {
             }
         });
 
-        Path defaultFile = Path.of("src", "clothing.txt");
-
-        fileField.setText(defaultFile.toAbsolutePath().toString());
-
-        boolean loaded = tracker.loadClothingItems(defaultFile);
-        refreshTable();
-
-        if (!loaded) {
-            status.setText(
-                    "Choose a clothing text file and click Load Records"
-            );
-        }
+        databaseField.setText(databasePath);
+        loadDatabase();
     }
 
-    /*
-     * Method: header
-     * Purpose: Shows the project name and inventory totals.
-     * Takes in: Nothing.
-     * Returns: The top panel.
-     */
+    // Creates the top section.
     private JPanel header() {
 
         JPanel outer = new JPanel(new BorderLayout(16, 14));
@@ -176,12 +143,7 @@ public class ClothingReplacementTracker extends JFrame {
         return outer;
     }
 
-    /*
-     * Method: metric
-     * Purpose: Makes a box that shows an inventory number.
-     * Takes in: The box title and number.
-     * Returns: The box panel.
-     */
+    // Creates a number card.
     private JPanel metric(String caption, JLabel value) {
 
         JPanel card = new JPanel(new BorderLayout(4, 5));
@@ -201,60 +163,59 @@ public class ClothingReplacementTracker extends JFrame {
         return card;
     }
 
-    /*
-     * Method: content
-     * Purpose: Puts the file box, table, search, and buttons on screen.
-     * Takes in: Nothing.
-     * Returns: The main panel.
-     */
+    // Creates the database controls, table, and buttons.
     private JPanel content() {
 
         JPanel main = new JPanel(new BorderLayout(0, 18));
         main.setBackground(background);
         main.setBorder(new EmptyBorder(22, 28, 22, 28));
 
-        JPanel importCard = new JPanel(new BorderLayout(0, 12));
-        importCard.setBackground(Color.WHITE);
-        importCard.setBorder(BorderFactory.createCompoundBorder(
+        JPanel databaseCard = new JPanel(new BorderLayout(0, 12));
+        databaseCard.setBackground(Color.WHITE);
+        databaseCard.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(
                         new Color(224, 231, 239)
                 ),
                 new EmptyBorder(16, 20, 17, 20)
         ));
 
-        JPanel importControls =
-                new JPanel(new BorderLayout(10, 0));
-        importControls.setOpaque(false);
+        JPanel controls = new JPanel(new BorderLayout(10, 0));
+        controls.setOpaque(false);
 
-        fileField.setFont(new Font("SansSerif", Font.PLAIN, 13));
-        fileField.setToolTipText(
-                "Enter the complete path to a clothing text file"
+        databaseField.setFont(new Font("SansSerif", Font.PLAIN, 13));
+        databaseField.setToolTipText(
+                "Enter the location of your SQLite database file"
         );
 
-        JPanel importButtons = new JPanel(
+        JPanel databaseButtons = new JPanel(
                 new FlowLayout(FlowLayout.RIGHT, 8, 0)
         );
-        importButtons.setOpaque(false);
+        databaseButtons.setOpaque(false);
 
         JButton browse = button(
                 "Browse", new Color(92, 108, 129)
         );
-        JButton load = button("Load Records", blue);
+        JButton load = button("Load Database", blue);
+        JButton refresh = button(
+                "Refresh", new Color(36, 128, 94)
+        );
 
-        browse.addActionListener(e -> browseFile());
-        load.addActionListener(e -> loadFile());
+        browse.addActionListener(e -> browseDatabase());
+        load.addActionListener(e -> loadDatabase());
+        refresh.addActionListener(e -> refreshTable());
 
-        importButtons.add(browse);
-        importButtons.add(load);
+        databaseButtons.add(browse);
+        databaseButtons.add(load);
+        databaseButtons.add(refresh);
 
-        importControls.add(fileField, BorderLayout.CENTER);
-        importControls.add(importButtons, BorderLayout.EAST);
+        controls.add(databaseField, BorderLayout.CENTER);
+        controls.add(databaseButtons, BorderLayout.EAST);
 
-        importCard.add(
-                heading("Import Clothing Records"),
+        databaseCard.add(
+                heading("SQLite Database Location"),
                 BorderLayout.NORTH
         );
-        importCard.add(importControls, BorderLayout.CENTER);
+        databaseCard.add(controls, BorderLayout.CENTER);
 
         JPanel inventory = new JPanel(new BorderLayout(0, 12));
         inventory.setOpaque(false);
@@ -316,12 +277,11 @@ public class ClothingReplacementTracker extends JFrame {
         inventory.add(scroll, BorderLayout.CENTER);
         inventory.add(actions, BorderLayout.SOUTH);
 
-        main.add(importCard, BorderLayout.NORTH);
+        main.add(databaseCard, BorderLayout.NORTH);
         main.add(inventory, BorderLayout.CENTER);
 
         searchField.getDocument().addDocumentListener(
                 new javax.swing.event.DocumentListener() {
-
                     @Override
                     public void insertUpdate(
                             javax.swing.event.DocumentEvent e) {
@@ -345,12 +305,7 @@ public class ClothingReplacementTracker extends JFrame {
         return main;
     }
 
-    /*
-     * Method: configureTable
-     * Purpose: Sets up the table colors, spacing, and date sorting.
-     * Takes in: Nothing.
-     * Returns: Nothing.
-     */
+    // Keeps the original table design and category colors.
     private void configureTable() {
 
         table.setRowHeight(38);
@@ -417,13 +372,19 @@ public class ClothingReplacementTracker extends JFrame {
                         setBorder(new EmptyBorder(0, 10, 0, 10));
 
                         if (column == 0 || column >= 5) {
-                            setHorizontalAlignment(SwingConstants.CENTER);
+                            setHorizontalAlignment(
+                                    SwingConstants.CENTER
+                            );
                         } else {
-                            setHorizontalAlignment(SwingConstants.LEFT);
+                            setHorizontalAlignment(
+                                    SwingConstants.LEFT
+                            );
                         }
 
                         if (isSelected) {
-                            setBackground(new Color(198, 222, 250));
+                            setBackground(
+                                    new Color(198, 222, 250)
+                            );
                             setForeground(navy);
                             return this;
                         }
@@ -435,32 +396,41 @@ public class ClothingReplacementTracker extends JFrame {
                         );
                         setForeground(new Color(35, 48, 65));
 
-                        // Each clothing category gets a different color.
                         if (column == 1 && value != null) {
                             switch (value.toString().toLowerCase()) {
                                 case "shirts":
-                                    setBackground(new Color(220, 235, 255));
+                                    setBackground(
+                                            new Color(220, 235, 255)
+                                    );
                                     break;
                                 case "pants":
-                                    setBackground(new Color(224, 243, 231));
+                                    setBackground(
+                                            new Color(224, 243, 231)
+                                    );
                                     break;
                                 case "socks":
-                                    setBackground(new Color(255, 241, 216));
+                                    setBackground(
+                                            new Color(255, 241, 216)
+                                    );
                                     break;
                                 case "coats":
-                                    setBackground(new Color(237, 225, 250));
+                                    setBackground(
+                                            new Color(237, 225, 250)
+                                    );
                                     break;
                                 case "underwear":
-                                    setBackground(new Color(255, 229, 237));
+                                    setBackground(
+                                            new Color(255, 229, 237)
+                                    );
                                     break;
                                 case "bras":
-                                    setBackground(new Color(226, 244, 244));
+                                    setBackground(
+                                            new Color(226, 244, 244)
+                                    );
                                     break;
                             }
                         }
 
-                        // Green means low wear, orange is medium,
-                        // and red means the item is close to replacement.
                         if (column == 7 && value != null) {
                             try {
                                 double percentage = Double.parseDouble(
@@ -468,17 +438,30 @@ public class ClothingReplacementTracker extends JFrame {
                                 );
 
                                 if (percentage >= 80) {
-                                    setBackground(new Color(255, 219, 219));
-                                    setForeground(new Color(160, 35, 35));
+                                    setBackground(
+                                            new Color(255, 219, 219)
+                                    );
+                                    setForeground(
+                                            new Color(160, 35, 35)
+                                    );
                                 } else if (percentage >= 50) {
-                                    setBackground(new Color(255, 237, 203));
-                                    setForeground(new Color(145, 85, 20));
+                                    setBackground(
+                                            new Color(255, 237, 203)
+                                    );
+                                    setForeground(
+                                            new Color(145, 85, 20)
+                                    );
                                 } else {
-                                    setBackground(new Color(218, 243, 227));
-                                    setForeground(new Color(30, 115, 70));
+                                    setBackground(
+                                            new Color(218, 243, 227)
+                                    );
+                                    setForeground(
+                                            new Color(30, 115, 70)
+                                    );
                                 }
+
                             } catch (NumberFormatException ignored) {
-                                // Keep the normal color.
+                                // Keep normal color.
                             }
                         }
 
@@ -493,19 +476,15 @@ public class ClothingReplacementTracker extends JFrame {
 
         table.setRowSorter(sorter);
 
-        sorter.setSortKeys(java.util.Collections.singletonList(
-                new RowSorter.SortKey(
-                        4, SortOrder.DESCENDING
+        sorter.setSortKeys(
+                java.util.Collections.singletonList(
+                        new RowSorter.SortKey(
+                                4, SortOrder.DESCENDING
+                        )
                 )
-        ));
+        );
     }
 
-    /*
-     * Method: heading
-     * Purpose: Makes the titles for each part of the screen.
-     * Takes in: The title text.
-     * Returns: The title label.
-     */
     private JLabel heading(String text) {
         JLabel label = new JLabel(text);
         label.setFont(new Font("SansSerif", Font.BOLD, 18));
@@ -513,12 +492,6 @@ public class ClothingReplacementTracker extends JFrame {
         return label;
     }
 
-    /*
-     * Method: button
-     * Purpose: Gives the buttons the same style.
-     * Takes in: The button name and color.
-     * Returns: The button.
-     */
     private JButton button(String text, Color color) {
 
         JButton b = new JButton(text);
@@ -535,12 +508,6 @@ public class ClothingReplacementTracker extends JFrame {
         return b;
     }
 
-    /*
-     * Method: footer
-     * Purpose: Shows messages at the bottom of the program.
-     * Takes in: Nothing.
-     * Returns: The bottom panel.
-     */
     private JPanel footer() {
 
         JPanel panel = new JPanel(new BorderLayout());
@@ -553,69 +520,138 @@ public class ClothingReplacementTracker extends JFrame {
         return panel;
     }
 
-    /*
-     * Method: refreshTable
-     * Purpose: Updates the list and puts the newest purchases first.
-     * Takes in: Nothing.
-     * Returns: Nothing.
-     */
-    private void refreshTable() {
+    // Opens the database file chooser.
+    private void browseDatabase() {
 
-        model.setRowCount(0);
-        displayedItems.clear();
-        displayedItems.addAll(tracker.getClothingItems());
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("Choose SQLite Database");
 
-        displayedItems.sort(
-                (first, second) -> second.getPurchaseDate()
-                        .compareTo(first.getPurchaseDate())
+        chooser.setFileFilter(
+                new javax.swing.filechooser.FileNameExtensionFilter(
+                        "SQLite Database (*.db)", "db"
+                )
         );
 
-        int number = 1;
-        Set<String> usedCategories = new HashSet<>();
-
-        for (ClothingItem item : displayedItems) {
-
-            usedCategories.add(
-                    item.getCategory().toLowerCase()
+        if (chooser.showOpenDialog(this)
+                == JFileChooser.APPROVE_OPTION) {
+            databaseField.setText(
+                    chooser.getSelectedFile().getAbsolutePath()
             );
-
-            model.addRow(new Object[]{
-                    number++,
-                    item.getCategory(),
-                    item.getSize(),
-                    item.getColor(),
-                    item.getPurchaseDate(),
-                    item.getNumberOfWears(),
-                    item.getExpectedWears(),
-                    String.format(
-                            "%.2f%%",
-                            tracker.calculateWearPercentage(item)
-                    )
-            });
         }
-
-        itemsValue.setText(
-                String.valueOf(tracker.getClothingItems().size())
-        );
-        categoriesValue.setText(
-                String.valueOf(usedCategories.size())
-        );
-        visibleValue.setText(
-                String.valueOf(table.getRowCount())
-        );
-
-        status.setText(
-                "Inventory ready | " +
-                        tracker.getClothingItems().size() + " total items"
-        );
     }
 
-    /*
-     * Method: filterTable
-     * Purpose: Shows items that match what the user searches for.
-     * Takes in: Nothing.
-     * Returns: Nothing.
-     */
+    // Connects to the database selected by the user.
+    private void loadDatabase() {
+
+        String input = databaseField.getText().trim();
+
+        if (input.isEmpty()) {
+            error("Enter a database location or click Browse.");
+            return;
+        }
+
+        try {
+            Path chosen = Path.of(input).toAbsolutePath();
+
+            if (!java.nio.file.Files.isRegularFile(chosen)) {
+                error("Database file not found. Choose an existing .db file.");
+                return;
+            }
+
+            try (Connection connection =
+                         ClothingDatabase.connect(chosen.toString())) {
+
+                ClothingDatabase.createTable(connection);
+            }
+
+            databasePath = chosen.toString();
+            searchField.setText("");
+            refreshTable();
+
+        } catch (java.nio.file.InvalidPathException e) {
+            error("The database location is invalid.");
+        } catch (SQLException e) {
+            error("Cannot open database: " + e.getMessage());
+        }
+    }
+
+    // Reads the current clothing records from SQLite.
+    private void refreshTable() {
+
+        String sql = """
+                SELECT id, category, size, color,
+                       purchase_date, number_of_wears, expected_wears
+                FROM clothing
+                ORDER BY purchase_date DESC, id DESC
+                """;
+
+        try (Connection connection =
+                     ClothingDatabase.connect(databasePath);
+             PreparedStatement statement =
+                     connection.prepareStatement(sql);
+             ResultSet results = statement.executeQuery()) {
+
+            java.util.List<Object[]> rows =
+                    new java.util.ArrayList<>();
+
+            Set<String> usedCategories = new HashSet<>();
+
+            while (results.next()) {
+
+                int id = results.getInt("id");
+                String category = results.getString("category");
+                String size = results.getString("size");
+                String color = results.getString("color");
+
+                LocalDate date = LocalDate.parse(
+                        results.getString("purchase_date")
+                );
+
+                int wears = results.getInt("number_of_wears");
+                int expected = results.getInt("expected_wears");
+
+                double percentage = expected > 0
+                        ? (wears * 100.0) / expected
+                        : 0;
+
+                usedCategories.add(category.toLowerCase());
+
+                rows.add(new Object[]{
+                        id,
+                        category,
+                        size,
+                        color,
+                        date,
+                        wears,
+                        expected,
+                        String.format("%.2f%%", percentage)
+                });
+            }
+
+            model.setRowCount(0);
+
+            for (Object[] row : rows) {
+                model.addRow(row);
+            }
+
+            itemsValue.setText(String.valueOf(rows.size()));
+            categoriesValue.setText(
+                    String.valueOf(usedCategories.size())
+            );
+
+            filterTable();
+
+            status.setText(
+                    "SQLite connected | " + rows.size() +
+                            " total items"
+            );
+
+        } catch (SQLException | RuntimeException e) {
+            error("Could not load clothing records: " + e.getMessage());
+        }
+    }
+
+    // Filters the table without changing the database.
     private void filterTable() {
 
         String query = searchField.getText().trim();
@@ -633,80 +669,15 @@ public class ClothingReplacementTracker extends JFrame {
         );
     }
 
-    /*
-     * Method: browseFile
-     * Purpose: Lets the user choose a clothing file.
-     * Takes in: Nothing.
-     * Returns: Nothing.
-     */
-    private void browseFile() {
-
-        JFileChooser chooser = new JFileChooser();
-        chooser.setDialogTitle("Choose a Clothing Text File");
-
-        if (chooser.showOpenDialog(this)
-                == JFileChooser.APPROVE_OPTION) {
-            fileField.setText(
-                    chooser.getSelectedFile().getAbsolutePath()
-            );
-        }
-    }
-
-    /*
-     * Method: loadFile
-     * Purpose: Loads the clothing records from the chosen file.
-     * Takes in: The file location from the text box.
-     * Returns: Nothing.
-     */
-    private void loadFile() {
-
-        String input = fileField.getText().trim();
-
-        if (input.isEmpty()) {
-            error("Enter a file location or click Browse.");
-            return;
-        }
-
-        try {
-            if (tracker.loadClothingItems(Path.of(input))) {
-
-                searchField.setText("");
-                refreshTable();
-
-                status.setText("Loaded file: " + input);
-
-                JOptionPane.showMessageDialog(
-                        this,
-                        "Loaded " + tracker.getClothingItems().size() +
-                                " clothing records."
-                );
-
-            } else {
-                error(
-                        "The file could not be loaded. " +
-                                "Check the location and file format."
-                );
-            }
-        } catch (InvalidPathException e) {
-            error("The file location is invalid.");
-        }
-    }
-
-    /*
-     * Method: makeColorMenu
-     * Purpose: Shows the colors the user can choose from.
-     * Takes in: The color already saved for the item.
-     * Returns: A color drop-down menu.
-     */
+    // Creates the color menu.
     private JComboBox<String> makeColorMenu(String currentColor) {
 
         JComboBox<String> menu = new JComboBox<>(colors);
 
-        menu.setFont(new Font("SansSerif", Font.PLAIN, 13));
-
         if (currentColor != null) {
             String chosen = currentColor.equalsIgnoreCase("grey")
-                    ? "gray" : currentColor.toLowerCase();
+                    ? "gray"
+                    : currentColor.toLowerCase();
 
             menu.setSelectedItem(chosen);
         }
@@ -714,13 +685,9 @@ public class ClothingReplacementTracker extends JFrame {
         return menu;
     }
 
-    /*
-     * Method: makeCategoryMenu
-     * Purpose: Shows the clothing categories the program accepts.
-     * Takes in: The category already saved for the item.
-     * Returns: A category drop-down menu.
-     */
-    private JComboBox<String> makeCategoryMenu(String currentCategory) {
+    // Creates the category menu.
+    private JComboBox<String> makeCategoryMenu(
+            String currentCategory) {
 
         JComboBox<String> menu = new JComboBox<>(categories);
 
@@ -731,12 +698,7 @@ public class ClothingReplacementTracker extends JFrame {
         return menu;
     }
 
-    /*
-     * Method: makeSizeMenu
-     * Purpose: Shows the clothing sizes the program accepts.
-     * Takes in: The size already saved for the item.
-     * Returns: A size drop-down menu.
-     */
+    // Creates the size menu.
     private JComboBox<String> makeSizeMenu(String currentSize) {
 
         JComboBox<String> menu = new JComboBox<>(sizes);
@@ -753,25 +715,44 @@ public class ClothingReplacementTracker extends JFrame {
         return menu;
     }
 
-    /*
-     * Method: editForm
-     * Purpose: Opens the form used to add a new clothing item.
-     * Takes in: Nothing.
-     * Returns: A new clothing item or null if canceled.
-     */
-    private ClothingItem editForm() {
+    // Opens the Add or Update form.
+    // Users can change multiple fields at once.
+    private ClothingItem editForm(
+            ClothingItem original, String title) {
 
-        JComboBox<String> category = makeCategoryMenu("shirts");
-        JComboBox<String> size = makeSizeMenu("M");
-        JComboBox<String> color = makeColorMenu("blue");
+        JComboBox<String> category = makeCategoryMenu(
+                original == null ? "shirts" : original.getCategory()
+        );
+
+        JComboBox<String> size = makeSizeMenu(
+                original == null ? "M" : original.getSize()
+        );
+
+        JComboBox<String> color = makeColorMenu(
+                original == null ? "blue" : original.getColor()
+        );
 
         JTextField date = new JTextField(
-                LocalDate.now().toString()
+                original == null
+                        ? LocalDate.now().toString()
+                        : original.getPurchaseDate().toString()
         );
-        JTextField wears = new JTextField("0");
-        JTextField expected = new JTextField("50");
 
-        JPanel fields = new JPanel(new GridLayout(0, 2, 12, 12));
+        JTextField wears = new JTextField(
+                original == null
+                        ? "0"
+                        : String.valueOf(original.getNumberOfWears())
+        );
+
+        JTextField expected = new JTextField(
+                original == null
+                        ? "50"
+                        : String.valueOf(original.getExpectedWears())
+        );
+
+        JPanel fields = new JPanel(
+                new GridLayout(0, 2, 12, 12)
+        );
         fields.setBorder(new EmptyBorder(12, 12, 12, 12));
 
         fields.add(new JLabel("Category"));
@@ -795,7 +776,9 @@ public class ClothingReplacementTracker extends JFrame {
         while (true) {
 
             int choice = JOptionPane.showConfirmDialog(
-                    this, fields, "Add Clothing",
+                    this,
+                    fields,
+                    title,
                     JOptionPane.OK_CANCEL_OPTION,
                     JOptionPane.PLAIN_MESSAGE
             );
@@ -814,16 +797,23 @@ public class ClothingReplacementTracker extends JFrame {
                 int expectedWears =
                         Integer.parseInt(expected.getText().trim());
 
-                if (expectedWears <= 0 ||
-                        numberOfWears < 0 ||
-                        numberOfWears > expectedWears ||
-                        purchaseDate.isAfter(LocalDate.now())) {
+                if (purchaseDate.isAfter(LocalDate.now())) {
+                    error("Purchase date cannot be in the future.");
+                    continue;
+                }
 
+                if (numberOfWears < 0 || expectedWears <= 0) {
                     error(
-                            "Check the date and wear counts. " +
-                                    "The date cannot be in the future, and " +
-                                    "the number of wears cannot be more " +
-                                    "than the expected wears."
+                            "Number of wears cannot be negative. " +
+                                    "Expected wears must be greater than zero."
+                    );
+                    continue;
+                }
+
+                if (numberOfWears > expectedWears) {
+                    error(
+                            "Number of wears cannot be greater " +
+                                    "than expected wears."
                     );
                     continue;
                 }
@@ -845,348 +835,162 @@ public class ClothingReplacementTracker extends JFrame {
         }
     }
 
-    /*
-     * Method: addClothing
-     * Purpose: Adds a clothing item and updates the table.
-     * Takes in: The information entered in the form.
-     * Returns: Nothing.
-     */
+    // Adds a clothing item to SQLite.
     private void addClothing() {
 
-        while (true) {
+        ClothingItem item = editForm(null, "Add Clothing");
 
-            ClothingItem item = editForm();
+        if (item == null) {
+            return;
+        }
 
-            if (item == null) {
-                return;
-            }
+        String sql = """
+                INSERT INTO clothing
+                (category, size, color, purchase_date,
+                 number_of_wears, expected_wears)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """;
 
-            if (tracker.addClothingItem(item)) {
-                refreshTable();
+        try (Connection connection =
+                     ClothingDatabase.connect(databasePath);
+             PreparedStatement statement =
+                     connection.prepareStatement(sql)) {
 
-                JOptionPane.showMessageDialog(
-                        this, "Clothing item added successfully."
-                );
-                return;
-            }
+            fillStatement(statement, item);
+            statement.executeUpdate();
 
-            error("The clothing item could not be added.");
+            refreshTable();
+
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Clothing item added successfully."
+            );
+
+        } catch (SQLException e) {
+            error("Could not add clothing: " + e.getMessage());
         }
     }
 
-    /*
-     * Method: selectedItem
-     * Purpose: Finds the correct item after searching or sorting.
-     * Takes in: The row the user selected.
-     * Returns: The clothing item or null if none was selected.
-     */
-    private ClothingItem selectedItem() {
+    // Gets the selected record's permanent SQLite ID.
+    private Integer selectedId() {
 
-        int row = table.getSelectedRow();
+        int viewRow = table.getSelectedRow();
 
-        if (row < 0) {
+        if (viewRow < 0) {
             error("Select a clothing item from the table first.");
             return null;
         }
 
-        int modelRow = table.convertRowIndexToModel(row);
+        int modelRow = table.convertRowIndexToModel(viewRow);
 
-        return displayedItems.get(modelRow);
+        return (Integer) model.getValueAt(modelRow, 0);
     }
 
-    /*
-     * Method: updateClothing
-     * Purpose: Lets the user choose one part of an item to change.
-     * Takes in: The selected clothing item.
-     * Returns: Nothing.
-     */
+    // Gets the selected clothing information from the table.
+    private ClothingItem selectedItem() {
+
+        int viewRow = table.getSelectedRow();
+
+        if (viewRow < 0) {
+            error("Select a clothing item from the table first.");
+            return null;
+        }
+
+        int row = table.convertRowIndexToModel(viewRow);
+
+        return new ClothingItem(
+                (String) model.getValueAt(row, 1),
+                (String) model.getValueAt(row, 2),
+                (String) model.getValueAt(row, 3),
+                (LocalDate) model.getValueAt(row, 4),
+                (Integer) model.getValueAt(row, 5),
+                (Integer) model.getValueAt(row, 6)
+        );
+    }
+
+    // Updates the selected SQLite record.
     private void updateClothing() {
 
-        ClothingItem original = selectedItem();
+        Integer id = selectedId();
 
-        if (original == null) {
+        if (id == null) {
             return;
         }
 
-        String[] options = {
-                "Category",
-                "Size",
-                "Color",
-                "Purchase Date",
-                "Number of Wears",
-                "Expected Wears",
-                "Return"
-        };
+        ClothingItem original = selectedItem();
 
-        while (true) {
+        ClothingItem updated = editForm(
+                original, "Update Clothing"
+        );
 
-            String selectedField = (String)
-                    JOptionPane.showInputDialog(
-                            this,
-                            "Which part of this clothing item " +
-                                    "would you like to change?",
-                            "Update Clothing",
-                            JOptionPane.QUESTION_MESSAGE,
-                            null,
-                            options,
-                            options[0]
-                    );
+        if (updated == null) {
+            return;
+        }
 
-            if (selectedField == null ||
-                    selectedField.equals("Return")) {
-                return;
-            }
+        String sql = """
+                UPDATE clothing
+                SET category = ?,
+                    size = ?,
+                    color = ?,
+                    purchase_date = ?,
+                    number_of_wears = ?,
+                    expected_wears = ?
+                WHERE id = ?
+                """;
 
-            // Make a copy so the original is not changed
-            // unless the new information passes the checks.
-            ClothingItem updated = new ClothingItem(
-                    original.getCategory(),
-                    original.getSize(),
-                    original.getColor(),
-                    original.getPurchaseDate(),
-                    original.getNumberOfWears(),
-                    original.getExpectedWears()
-            );
+        try (Connection connection =
+                     ClothingDatabase.connect(databasePath);
+             PreparedStatement statement =
+                     connection.prepareStatement(sql)) {
 
-            boolean changed = false;
+            fillStatement(statement, updated);
+            statement.setInt(7, id);
 
-            switch (selectedField) {
+            int changed = statement.executeUpdate();
 
-                case "Category": {
-
-                    JComboBox<String> menu =
-                            makeCategoryMenu(original.getCategory());
-
-                    int choice = JOptionPane.showConfirmDialog(
-                            this, menu, "Change Category",
-                            JOptionPane.OK_CANCEL_OPTION,
-                            JOptionPane.PLAIN_MESSAGE
-                    );
-
-                    if (choice == JOptionPane.OK_OPTION) {
-                        updated.setCategory(
-                                (String) menu.getSelectedItem()
-                        );
-                        changed = true;
-                    }
-                    break;
-                }
-
-                case "Size": {
-
-                    JComboBox<String> menu =
-                            makeSizeMenu(original.getSize());
-
-                    int choice = JOptionPane.showConfirmDialog(
-                            this, menu, "Change Size",
-                            JOptionPane.OK_CANCEL_OPTION,
-                            JOptionPane.PLAIN_MESSAGE
-                    );
-
-                    if (choice == JOptionPane.OK_OPTION) {
-                        updated.setSize(
-                                (String) menu.getSelectedItem()
-                        );
-                        changed = true;
-                    }
-                    break;
-                }
-
-                case "Color": {
-
-                    JComboBox<String> menu =
-                            makeColorMenu(original.getColor());
-
-                    int choice = JOptionPane.showConfirmDialog(
-                            this,
-                            new Object[]{
-                                    "Choose the closest available color:",
-                                    menu
-                            },
-                            "Change Color",
-                            JOptionPane.OK_CANCEL_OPTION,
-                            JOptionPane.PLAIN_MESSAGE
-                    );
-
-                    if (choice == JOptionPane.OK_OPTION) {
-                        updated.setColor(
-                                (String) menu.getSelectedItem()
-                        );
-                        changed = true;
-                    }
-                    break;
-                }
-
-                case "Purchase Date": {
-
-                    while (true) {
-
-                        String input = JOptionPane.showInputDialog(
-                                this,
-                                "Enter the purchase date (YYYY-MM-DD):",
-                                original.getPurchaseDate().toString()
-                        );
-
-                        if (input == null) {
-                            break;
-                        }
-
-                        try {
-                            LocalDate newDate =
-                                    LocalDate.parse(input.trim());
-
-                            if (newDate.isAfter(LocalDate.now())) {
-                                error(
-                                        "The purchase date cannot " +
-                                                "be in the future."
-                                );
-                                continue;
-                            }
-
-                            updated.setPurchaseDate(newDate);
-                            changed = true;
-                            break;
-
-                        } catch (DateTimeParseException e) {
-                            error("Enter the date using YYYY-MM-DD.");
-                        }
-                    }
-                    break;
-                }
-
-                case "Number of Wears": {
-
-                    while (true) {
-
-                        String input = JOptionPane.showInputDialog(
-                                this,
-                                "Enter the number of wears:",
-                                String.valueOf(
-                                        original.getNumberOfWears()
-                                )
-                        );
-
-                        if (input == null) {
-                            break;
-                        }
-
-                        try {
-                            int newWears =
-                                    Integer.parseInt(input.trim());
-
-                            if (newWears < 0 ||
-                                    newWears >
-                                            original.getExpectedWears()) {
-
-                                error(
-                                        "Enter a number from 0 to " +
-                                                original.getExpectedWears() + "."
-                                );
-                                continue;
-                            }
-
-                            updated.setNumberOfWears(newWears);
-                            changed = true;
-                            break;
-
-                        } catch (NumberFormatException e) {
-                            error("Enter a whole number.");
-                        }
-                    }
-                    break;
-                }
-
-                case "Expected Wears": {
-
-                    while (true) {
-
-                        String input = JOptionPane.showInputDialog(
-                                this,
-                                "Enter the expected number of wears:",
-                                String.valueOf(
-                                        original.getExpectedWears()
-                                )
-                        );
-
-                        if (input == null) {
-                            break;
-                        }
-
-                        try {
-                            int newExpected =
-                                    Integer.parseInt(input.trim());
-
-                            if (newExpected <= 0 ||
-                                    newExpected <
-                                            original.getNumberOfWears()) {
-
-                                error(
-                                        "Expected wears must be at least " +
-                                                original.getNumberOfWears() +
-                                                " and greater than zero."
-                                );
-                                continue;
-                            }
-
-                            updated.setExpectedWears(newExpected);
-                            changed = true;
-                            break;
-
-                        } catch (NumberFormatException e) {
-                            error("Enter a whole number.");
-                        }
-                    }
-                    break;
-                }
-            }
-
-            if (!changed) {
-                continue;
-            }
-
-            if (tracker.updateClothingItem(original, updated)) {
-
+            if (changed > 0) {
                 refreshTable();
-
-                // Keep the updated item selected after the table refreshes.
-                int modelRow = displayedItems.indexOf(updated);
-
-                if (modelRow >= 0) {
-                    int viewRow =
-                            table.convertRowIndexToView(modelRow);
-
-                    if (viewRow >= 0) {
-                        table.setRowSelectionInterval(viewRow, viewRow);
-                    }
-                }
+                selectId(id);
 
                 JOptionPane.showMessageDialog(
                         this,
-                        selectedField + " updated successfully."
+                        "Clothing item updated successfully."
                 );
+            } else {
+                error("The clothing item was not found.");
+            }
+
+        } catch (SQLException e) {
+            error("Could not update clothing: " + e.getMessage());
+        }
+    }
+
+    // Keeps the updated record selected.
+    private void selectId(int id) {
+
+        for (int row = 0; row < model.getRowCount(); row++) {
+
+            if (((Integer) model.getValueAt(row, 0)) == id) {
+
+                int viewRow = table.convertRowIndexToView(row);
+
+                if (viewRow >= 0) {
+                    table.setRowSelectionInterval(
+                            viewRow, viewRow
+                    );
+                }
 
                 return;
-
-            } else {
-                error(
-                        "The change could not be saved. " +
-                                "Please check the information."
-                );
             }
         }
     }
 
-    /*
-     * Method: removeClothing
-     * Purpose: Removes an item after the user confirms it.
-     * Takes in: The selected clothing item.
-     * Returns: Nothing.
-     */
+    // Removes a record from SQLite after confirmation.
     private void removeClothing() {
 
-        ClothingItem item = selectedItem();
+        Integer id = selectedId();
 
-        if (item == null) {
+        if (id == null) {
             return;
         }
 
@@ -1197,28 +1001,38 @@ public class ClothingReplacementTracker extends JFrame {
                 JOptionPane.YES_NO_OPTION
         );
 
-        if (confirmation == JOptionPane.YES_OPTION) {
+        if (confirmation != JOptionPane.YES_OPTION) {
+            return;
+        }
 
-            if (tracker.removeClothingItem(item)) {
+        String sql = "DELETE FROM clothing WHERE id = ?";
 
+        try (Connection connection =
+                     ClothingDatabase.connect(databasePath);
+             PreparedStatement statement =
+                     connection.prepareStatement(sql)) {
+
+            statement.setInt(1, id);
+
+            int removed = statement.executeUpdate();
+
+            if (removed > 0) {
                 refreshTable();
 
                 JOptionPane.showMessageDialog(
-                        this, "Clothing item removed."
+                        this,
+                        "Clothing item removed successfully."
                 );
-
             } else {
-                error("The item could not be removed.");
+                error("The clothing item was not found.");
             }
+
+        } catch (SQLException e) {
+            error("Could not remove clothing: " + e.getMessage());
         }
     }
 
-    /*
-     * Method: calculateWear
-     * Purpose: Shows how much the selected clothing item has been worn.
-     * Takes in: The selected clothing item.
-     * Returns: Nothing.
-     */
+    // Calculates wear percentage for the selected item.
     private void calculateWear() {
 
         ClothingItem item = selectedItem();
@@ -1227,6 +1041,12 @@ public class ClothingReplacementTracker extends JFrame {
             return;
         }
 
+        double percentage =
+                item.getExpectedWears() > 0
+                        ? item.getNumberOfWears() * 100.0
+                        / item.getExpectedWears()
+                        : 0;
+
         JOptionPane.showMessageDialog(
                 this,
                 "Category: " + item.getCategory() +
@@ -1234,21 +1054,28 @@ public class ClothingReplacementTracker extends JFrame {
                         "\nWears: " + item.getNumberOfWears() +
                         " / " + item.getExpectedWears() +
                         "\nWear Percentage: " +
-                        String.format(
-                                "%.2f%%",
-                                tracker.calculateWearPercentage(item)
-                        ),
+                        String.format("%.2f%%", percentage),
                 "Wear Calculation",
                 JOptionPane.INFORMATION_MESSAGE
         );
     }
 
-    /*
-     * Method: error
-     * Purpose: Shows an error without closing the program.
-     * Takes in: The message explaining the problem.
-     * Returns: Nothing.
-     */
+    // Places clothing values into a prepared SQL statement.
+    private void fillStatement(
+            PreparedStatement statement,
+            ClothingItem item) throws SQLException {
+
+        statement.setString(1, item.getCategory());
+        statement.setString(2, item.getSize());
+        statement.setString(3, item.getColor());
+        statement.setString(
+                4, item.getPurchaseDate().toString()
+        );
+        statement.setInt(5, item.getNumberOfWears());
+        statement.setInt(6, item.getExpectedWears());
+    }
+
+    // Displays an error without closing the program.
     private void error(String message) {
 
         JOptionPane.showMessageDialog(
@@ -1259,12 +1086,7 @@ public class ClothingReplacementTracker extends JFrame {
         );
     }
 
-    /*
-     * Method: exitApplication
-     * Purpose: Asks before closing the program.
-     * Takes in: Nothing.
-     * Returns: Nothing.
-     */
+    // Exits only after the user confirms.
     private void exitApplication() {
 
         int confirmation = JOptionPane.showConfirmDialog(
@@ -1277,5 +1099,13 @@ public class ClothingReplacementTracker extends JFrame {
         if (confirmation == JOptionPane.YES_OPTION) {
             dispose();
         }
+    }
+
+    // Starts the GUI.
+    public static void main(String[] args) {
+
+        SwingUtilities.invokeLater(() -> {
+            new ClothingReplacementTracker().setVisible(true);
+        });
     }
 }

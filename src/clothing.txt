@@ -1,7 +1,6 @@
 socks|M|white|2026-01-10|5|50
 socks|L|black|2026-02-15|10|60
 socks|S|gray|2026-03-20|15|50
-shirts|M|blue|2026-01-05|10|50
 shirts|L|black|2026-02-12|20|60
 shirts|S|white|2026-03-08|15|50
 shirts|XL|red|2026-04-01|5|40
@@ -9,7 +8,6 @@ pants|M|blue|2026-01-18|20|100
 pants|L|black|2026-02-22|30|100
 pants|S|gray|2026-03-15|10|80
 pants|XL|khaki|2026-04-10|15|90
-coats|L|brown|2025-12-01|10|80
 coats|XL|gray|2026-01-20|15|100
 underwear|M|white|2026-05-01|10|40
 underwear|L|black|2026-05-10|5|40
@@ -21,3 +19,5 @@ shirts|M|blue|2026-01-15|5|50
 shirts|L|green|2026-07-01|6|100
 shirts|M|blue|2026-10-31|0|50
 shirts|M|blue|2026-10-31|6|50
+coats|L|brown|2026-10-16|6|10
+bras|M|pink|2026-11-06|1|50

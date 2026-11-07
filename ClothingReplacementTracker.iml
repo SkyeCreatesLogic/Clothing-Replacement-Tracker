@@ -9,5 +9,7 @@
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="junit.jupiter" level="project" />
+    <orderEntry type="library" exported="" name="sqlite-jdbc-3.46.1.0" level="project" />
+    <orderEntry type="library" name="slf4j-api-2.0.16" level="project" />
   </component>
 </module>
